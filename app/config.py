@@ -140,6 +140,17 @@ class Config(object):
     FF_SALESFORCE_CONTACT = env.bool("FF_SALESFORCE_CONTACT", False)
     FF_SALESFORCE_CONTACT = env.bool("FF_SALESFORCE_CONTACT", False)
 
+    # OAuth2 IDP config
+    FF_IDP_OIDC_LOGIN_GOV = env.bool("FF_IDP_OIDC_LOGIN_GOV", False)
+    IDP_ACR_VALUES = os.environ.get("IDP_ACR_VALUES", None)
+    IDP_CONF_URL = os.environ.get("IDP_CONF_URL", None)
+    LOGINGOV_CLIENT_ID = os.environ.get("LOGINGOV_CLIENT_ID", None)
+    LOGINGOV_CLIENT_PRIVATE_KEY = os.environ.get("LOGINGOV_CLIENT_PRIVATE_KEY", None)
+    if LOGINGOV_CLIENT_PRIVATE_KEY:
+        with open(LOGINGOV_CLIENT_PRIVATE_KEY, "rb") as f:
+            LOGINGOV_CLIENT_SECRET = f.read()
+    
+
     @classmethod
     def get_sensitive_config(cls) -> list[str]:
         "List of config keys that contain sensitive information"
@@ -149,6 +160,8 @@ class Config(object):
             "CRM_GITHUB_PERSONAL_ACCESS_TOKEN",
             "DANGEROUS_SALT",
             "DEBUG_KEY",
+            "LOGINGOV_CLIENT_ID",
+            "LOGINGOV_CLIENT_SECRET",
             "GC_ARTICLES_API_AUTH_PASSWORD",
             "GC_ARTICLES_API_AUTH_USERNAME",
             "ROUTE_SECRET_KEY_1",
