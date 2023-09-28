@@ -1,16 +1,31 @@
-from flask import abort, flash, redirect, render_template, request, session, url_for
+from authlib.common.security import generate_token
+from flask import abort, current_app, flash, redirect, render_template, request, session, url_for
 from flask_babel import _
 from flask_login import current_user
 
 from app import login_manager
 from app.main import main
 from app.main.forms import LoginForm
+from app.main.views.authenticator import Authenticator
+from app.main.views.two_factor import redirect_when_logged_in
 from app.models.user import InvitedUser, User
 from app.utils import _constructLoginData
 
 
 @main.route("/sign-in", methods=(["GET", "POST"]))
 def sign_in():
+    """Start the login flow"""
+    
+    # OpenID Connect using Login.gov as the IDP
+    if current_app.config["FF_IDP_OIDC_LOGIN_GOV"]:
+        oauth = current_app.config["OAUTH_CLIENT"]
+        redirect_uri = url_for("main.auth", _external=True)
+        return oauth.logingov.authorize_redirect(
+            redirect_uri,
+            acr_values=current_app.config["IDP_ACR_VALUES"],
+            nonce=generate_token(22),
+        )    
+    
     if current_user and current_user.is_authenticated:
         return redirect(url_for("main.show_accounts_or_dashboard"))
 
@@ -68,3 +83,32 @@ def sign_in():
 @login_manager.unauthorized_handler
 def sign_in_again():
     return redirect(url_for("main.sign_in", next=request.path))
+
+
+@main.route("/auth")
+def auth():
+    """Complete the OAuth login flow"""
+    oauth = current_app.config["OAUTH_CLIENT"]
+    token = oauth.logingov.authorize_access_token()
+    
+    # TODO: more error handling would be needed here
+    if token and "userinfo" in token:
+        email = token["userinfo"]["email"] 
+        user = User.from_email_address_or_none(email)
+        
+        # Implicit registration
+        # TODO: pass the IDP's user ID and store it as a field on the new account
+        if not user:
+            user = User.register(
+                name=email.split("@")[0].replace(".", " ").title(),
+                email_address=email,
+                mobile_number=None,
+                password="cecicestuntest",
+                auth_type="email_auth",
+            )
+            
+        with Authenticator(user.id) as user:
+            return redirect_when_logged_in(user=user, platform_admin=user.platform_admin)            
+    
+    # TODO: it would be nice to tell the user what went wrong
+    return redirect("/")

@@ -9,6 +9,9 @@ from time import monotonic
 from urllib.parse import urljoin
 
 import timeago
+
+from authlib.integrations.flask_client import OAuth
+from authlib.oauth2.rfc7523 import PrivateKeyJWT
 from flask import (
     Markup,
     current_app,
@@ -217,6 +220,19 @@ def create_app(application):
         application.config["CRM_ORG_LIST"] = salesforce_account.get_accounts(
             application.config["CRM_ORG_LIST_URL"], application.config["CRM_GITHUB_PERSONAL_ACCESS_TOKEN"], application.logger
         )
+        
+    # Initialize OAuth client
+    if application.config["FF_IDP_OIDC_LOGIN_GOV"]:
+        oauth = OAuth(application)
+        oauth.register(
+            name="logingov",
+            server_metadata_url=application.config["IDP_CONF_URL"],
+            token_endpoint_auth_method=PrivateKeyJWT(),
+            client_kwargs={
+                "scope": "openid email",
+            },
+        )
+        application.config["OAUTH_CLIENT"] = oauth
 
 
 def init_app(application):
