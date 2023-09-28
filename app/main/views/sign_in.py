@@ -6,7 +6,8 @@ from flask_login import current_user
 from app import login_manager
 from app.main import main
 from app.main.forms import LoginForm
-from app.main.views.two_factor import log_in_user
+from app.main.views.authenticator import Authenticator
+from app.main.views.two_factor import redirect_when_logged_in
 from app.models.user import InvitedUser, User
 from app.utils import _constructLoginData
 
@@ -91,10 +92,23 @@ def auth():
     token = oauth.logingov.authorize_access_token()
     
     # TODO: more error handling would be needed here
-    if token and "userinfo" in token:    
-        user = User.from_email_address_or_none(token["userinfo"]["email"])
-        if user and user.sign_in():
-            return log_in_user(user.id)
+    if token and "userinfo" in token:
+        email = token["userinfo"]["email"] 
+        user = User.from_email_address_or_none(email)
+        
+        # Implicit registration
+        # TODO: pass the IDP's user ID and store it as a field on the new account
+        if not user:
+            user = User.register(
+                name=email.split("@")[0].replace(".", " ").title(),
+                email_address=email,
+                mobile_number=None,
+                password="cecicestuntest",
+                auth_type="email_auth",
+            )
+            
+        with Authenticator(user.id) as user:
+            return redirect_when_logged_in(user=user, platform_admin=user.platform_admin)            
     
     # TODO: it would be nice to tell the user what went wrong
     return redirect("/")
